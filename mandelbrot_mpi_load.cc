@@ -67,15 +67,16 @@ while(lines_rem > 0 )
 	
 	for( int i = row; i < row + w; i++){
 	//	cout << global[i];
-		global[i] = line [i - row]; 
-		//img_view(i-row,row) = render(line[i-row]/512.0);
+		//global[i] = line [i - row]; 
+		//change the previous line to comment to next line for renderin
+		img_view(i-row,row) = render(line[i-row]/512.0);
 	//	cout << global[i];
 	}
 //	cout<<endl;
 	//store line in global
 	if(next_line < h){
 	//send next_line to rank
-	MPI_Send(&next_line,1,MPI_INT,rank,DATA,MPI_COMM_WORLD);
+	MPI_Send(&next_line,1,MPI_INT,rank,DATA,MPI_COMM_WORLD);//just send them the line number
 	next_line++;
 	lines_rem++;
 	}
