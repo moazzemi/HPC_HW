@@ -15,6 +15,6 @@ module load boost/1.57.0
 
 # Module load OpenMPI
 module load openmpi-1.8.3/gcc-4.8.3
-
+#change np for different run
 # Run the program 
 mpirun -x MXM_LOG_LEVEL=error -np 100  ./mandelbrot_mpi 1000 1000
