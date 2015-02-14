@@ -1,0 +1,7 @@
+Script began: Fri Feb 13 18:44:59 PST 2015
+Node: compute-7-1.local
+Current directory: /data/users/kmoazzem/HPC/HPC_HW/HW2
+
+=== Running 5 trials of saxpy on 10 million elements ... ===
+*** Trial 1 ***
+parallel time: 4.495834*** Trial 2 ***

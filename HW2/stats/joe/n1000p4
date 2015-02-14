@@ -1,0 +1,12 @@
+parallel time: 0.370666Script began: Fri Feb 13 17:34:56 PST 2015
+Node: compute-7-4.local
+Current directory: /data/users/kmoazzem/HPC/HPC_HW/HW2
+
+=== Running 5 trials of Mandelbrot on 10 million elements ... ===
+*** Trial 1 ***
+parallel time: 0.371005*** Trial 2 ***
+parallel time: 0.373674*** Trial 3 ***
+parallel time: 0.366442*** Trial 4 ***
+parallel time: 0.384732*** Trial 5 ***
+parallel time: 0.374156
+=== Done! ===

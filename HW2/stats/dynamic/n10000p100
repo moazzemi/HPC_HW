@@ -1,0 +1,8 @@
+Script began: Fri Feb 13 19:02:39 PST 2015
+Node: compute-7-7.local
+Current directory: /data/users/kmoazzem/HPC/HPC_HW/HW2
+
+=== Running 5 trials of mandelbrot on 10 million elements ... ===
+*** Trial 1 ***
+parallel time with dynamic load: 18.394017*** Trial 2 ***
+parallel time with dynamic load: 17.271585*** Trial 3 ***
