@@ -1,0 +1,45 @@
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+cudaMalloc: 0.101284 seconds
+cudaMemcpy: 0.022555 seconds
+SAXPY: 0.010747 seconds ==> 0.930492 billiion elements per second
+CPU: 0.060782 seconds
+Correct answer
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+cudaMalloc: 0.102844 seconds
+cudaMemcpy: 0.027568 seconds
+SAXPY: 0.010749 seconds ==> 0.930319 billiion elements per second
+CPU: 0.060815 seconds
+Correct answer
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+cudaMalloc: 0.101015 seconds
+cudaMemcpy: 0.02757 seconds
+SAXPY: 0.010738 seconds ==> 0.931272 billiion elements per second
+CPU: 0.060798 seconds
+Correct answer
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+cudaMalloc: 0.099319 seconds
+cudaMemcpy: 0.027404 seconds
+SAXPY: 0.010762 seconds ==> 0.929195 billiion elements per second
+CPU: 0.057615 seconds
+Correct answer
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+Timer: gettimeofday
+Timer resolution: ~ 1 us (?)
+cudaMalloc: 0.100121 seconds
+cudaMemcpy: 0.024298 seconds
+SAXPY: 0.010763 seconds ==> 0.929109 billiion elements per second
+CPU: 0.057595 seconds
+Correct answer

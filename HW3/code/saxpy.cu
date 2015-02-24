@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-
+#include <math.h>
 #include "cuda_utils.h"
 #include "timer.c"
 
@@ -49,8 +49,18 @@ cmpArr (dtype* a, dtype* b, int N)
 
 __global__ void
 saxpy (dtype a, dtype* x, dtype* y, int N)
-{
+{	
+	int nThreads = 1048576;
+
 	/* fill in your code here */
+	//int chunk =  floor(N / nThreads);
+	int chunk = 10;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	for( int j = 0; j < chunk; j ++){
+	int c = i* chunk + j;
+	if( c< N) 
+	y[c] += a * x[c];
+	}
 
 }
 

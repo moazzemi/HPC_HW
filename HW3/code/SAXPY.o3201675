@@ -1,0 +1,12 @@
+Script began: Fri Feb 13 13:04:33 PST 2015
+Node: compute-1-14.local
+Current directory: /data/users/bmostafa/hw3/hw3
+
+=== Running 5 trials of saxpy on 10 million elements ... ===
+*** Trial 1 ***
+*** Trial 2 ***
+*** Trial 3 ***
+*** Trial 4 ***
+*** Trial 5 ***
+
+=== Done! ===
