@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-
+#include "cuPrintf.cu"
 #include "cuda_utils.h"
 #include "timer.c"
 
@@ -10,27 +10,13 @@ typedef float dtype;
 __global__ 
 void matTrans(dtype* AT, dtype* A, int N,int chunk)  {
 	/* Fill your code here */
-	int ThreadId = blockIdx.x * blockDim.x + threadIdx.x;
- 	for( int i =0; i < chunk; i++)
-	{
-		int row = threadIdx.x * chunk  + i;
-        	int col = blockIdx.x;// * N/blockDim.x;
-                  
-		if(col < N){
-		AT[col*N + row] = A[row*N + col ];
-		}
-		else{
-		col -= N;
-		AT[col*N + row] = A[row * N + col];
-		
-		}
-	}
-	/*	int row = blockIdx.x * blockDim.x + threadIdx.x;
-	int col = blockIdx.y * blockDim.y + threadIdx.y;
-	AT[col*N + row] = A[row * N + col];
-	*/
+	//int ThreadId = blockIdx.x * blockDim.x + threadIdx.x;
+	 int x = blockIdx.x * blockDim.x + threadIdx.x;
+  	int y = blockIdx.y * blockDim.y + threadIdx.y;
+ 	 int width = N;
+//  for (int j = 0; j < 32; j+= 8)
+        AT[x*width + y] = A[y*width + x];
 }
-
 void
 parseArg (int argc, char** argv, int* N)
 {
@@ -87,7 +73,7 @@ gpuTranspose (dtype* A, dtype* AT, int N)
   struct stopwatch_t* timer = NULL;
   long double t_gpu,t_malloc,t_pcie;
   dtype * d_A, *d_AT;
-  int chunk,nThreads,tbSize,numTB;
+ // int chunk,nThreads,tbSize,numTB;
 	
   /* Setup timers */
   stopwatch_init ();
@@ -111,12 +97,12 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	/* do not change this number */
 //	nThreads = 1048576;
        
-	tbSize = 32;
-	numTB = N;
-  	chunk = N/tbSize;
-//	int tileSize = 32;
-//	dim3 numTB = (N/tileSize,N/tileSize);
-//	dim3 tbSize = (tileSize,8);
+//	tbSize = 1024;
+//	numTB = N;
+  	int chunk ;//= N/tbSize;
+	int tileSize = 32;
+	dim3 numTB = (N/tileSize,N/tileSize,1);
+	dim3 tbSize = (tileSize,tileSize,1);
 	stopwatch_start (timer);
 	// kernel invocation
 	matTrans <<<numTB,tbSize>>> (d_AT, d_A, N,chunk);
