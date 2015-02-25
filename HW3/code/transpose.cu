@@ -8,9 +8,27 @@ typedef float dtype;
 
 
 __global__ 
-void matTrans(dtype* AT, dtype* A, int N)  {
+void matTrans(dtype* AT, dtype* A, int N,int chunk)  {
 	/* Fill your code here */
-
+	int ThreadId = blockIdx.x * blockDim.x + threadIdx.x;
+ 	for( int i =0; i < chunk; i++)
+	{
+		int row = threadIdx.x * chunk  + i;
+        	int col = blockIdx.x;// * N/blockDim.x;
+                  
+		if(col < N){
+		AT[col*N + row] = A[row*N + col ];
+		}
+		else{
+		col -= N;
+		AT[col*N + row] = A[row * N + col];
+		
+		}
+	}
+	/*	int row = blockIdx.x * blockDim.x + threadIdx.x;
+	int col = blockIdx.y * blockDim.y + threadIdx.y;
+	AT[col*N + row] = A[row * N + col];
+	*/
 }
 
 void
@@ -67,8 +85,9 @@ void
 gpuTranspose (dtype* A, dtype* AT, int N)
 {
   struct stopwatch_t* timer = NULL;
-  long double t_gpu;
-
+  long double t_gpu,t_malloc,t_pcie;
+  dtype * d_A, *d_AT;
+  int chunk,nThreads,tbSize,numTB;
 	
   /* Setup timers */
   stopwatch_init ();
@@ -76,8 +95,35 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 
   stopwatch_start (timer);
 	/* run your kernel here */
+        CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_A, N * N  * sizeof (dtype)));
+	CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_AT, N * N * sizeof (dtype)));
+	t_malloc = stopwatch_stop (timer);
+	fprintf (stderr, "cudaMalloc: %Lg seconds\n", t_malloc);
 
-  cudaThreadSynchronize ();
+
+	stopwatch_start (timer);
+	// copy arrays to device via PCIe
+	CUDA_CHECK_ERROR (cudaMemcpy (d_A, A, N * N * sizeof (dtype), cudaMemcpyHostToDevice));
+	t_pcie = stopwatch_stop (timer);
+	fprintf (stderr, "cudaMemcpy: %Lg seconds\n", t_pcie);
+
+
+	/* do not change this number */
+//	nThreads = 1048576;
+       
+	tbSize = 32;
+	numTB = N;
+  	chunk = N/tbSize;
+//	int tileSize = 32;
+//	dim3 numTB = (N/tileSize,N/tileSize);
+//	dim3 tbSize = (tileSize,8);
+	stopwatch_start (timer);
+	// kernel invocation
+	matTrans <<<numTB,tbSize>>> (d_AT, d_A, N,chunk);
+	cudaThreadSynchronize ();
+     	CUDA_CHECK_ERROR (cudaMemcpy ( AT,d_AT, N * N * sizeof (dtype),cudaMemcpyDeviceToHost));
+
+//  cudaThreadSynchronize ();
   t_gpu = stopwatch_stop (timer);
   fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
            t_gpu, (N * N) / t_gpu * 1e-9 );
