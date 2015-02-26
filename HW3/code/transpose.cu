@@ -94,7 +94,6 @@ gpuTranspose (dtype* A, dtype* AT, int N)
   struct stopwatch_t* timer = NULL;
   long double t_gpu,t_malloc,t_pcie;
   dtype * d_A, *d_AT, *A2, *AT2;
- // int chunk,nThreads,tbSize,numTB;
 	
   /* Setup timers */
   stopwatch_init ();
@@ -110,17 +109,17 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	dim3 tbSize; //= (tile,rows);
 	tbSize.x = tb_x;
 	tbSize.y = tb_y;
-	int d_N;
-	if( N%32)d_N = numTB.x *tb_x;		
-	else d_N =N;
-        printf("d_n %d",d_N);
+	int d_N = numTB.x *tb_x;		
+	
+       
 	stopwatch_start (timer);
 	/* run your kernel here */
         CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_A, d_N * d_N  * sizeof (dtype)));
-        A2 = (dtype *) malloc (d_N * d_N  * sizeof (dtype)); //padded A
-	AT2 = (dtype*) malloc (d_N * d_N * sizeof(dtype)); //padded AT
 	CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_AT, d_N * d_N * sizeof (dtype)));
-	
+	if(d_N != N){
+	 A2 = (dtype *) malloc (d_N * d_N  * sizeof (dtype)); //padded A
+	AT2 = (dtype*) malloc (d_N * d_N * sizeof(dtype)); //padded AT
+	}
 
 	t_malloc = stopwatch_stop (timer);
 	fprintf (stderr, "cudaMalloc: %Lg seconds\n", t_malloc);
@@ -128,7 +127,7 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 
 	stopwatch_start (timer);
 	// disperse the main array to a padded array
-	
+	if(d_N!=N){
 	for ( int count = 0; count < N ; count++)
 	{
 		for ( int j = 0; j < N ; j++)
@@ -150,8 +149,9 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	
 	// copy arrays to device via PCIe
 	CUDA_CHECK_ERROR (cudaMemcpy (d_A, A2, d_N * d_N * sizeof (dtype), cudaMemcpyHostToDevice));
-	
-	//CUDA_CHECK_ERROR (cudaMemcpy (d_A, A, d_N * d_N * sizeof (dtype), cudaMemcpyHostToDevice));
+	}
+	else
+	CUDA_CHECK_ERROR (cudaMemcpy (d_A, A, d_N * d_N * sizeof (dtype), cudaMemcpyHostToDevice));
 	
 	t_pcie = stopwatch_stop (timer);
 	fprintf (stderr, "cudaMemcpy (and padding): %Lg seconds\n", t_pcie);
@@ -161,7 +161,7 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	// kernel invocation
 	matTrans<<<numTB,tbSize>>>(d_AT, d_A, d_N);
 	cudaThreadSynchronize ();
-	//if(! N%32){
+	if(d_N != N){
      	CUDA_CHECK_ERROR (cudaMemcpy ( AT2,d_AT, d_N * d_N * sizeof (dtype),cudaMemcpyDeviceToHost));
 	//combine the main array with removing/ignoring the empty boxes between each row. 
 	for ( int count = 0; count < N ; count++)
@@ -171,9 +171,9 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 			AT[count*N+j] = AT2[count*d_N+j];
 		} 
 	}
-
-	//else 
-	//CUDA_CHECK_ERROR (cudaMemcpy (AT, d_AT, d_N * d_N * sizeof (dtype), cudaMemcpyDeviceToHost));
+	}
+	else 
+	CUDA_CHECK_ERROR (cudaMemcpy (AT, d_AT, d_N * d_N * sizeof (dtype), cudaMemcpyDeviceToHost));
  //  cudaThreadSynchronize ();
   t_gpu = stopwatch_stop (timer);
   fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
