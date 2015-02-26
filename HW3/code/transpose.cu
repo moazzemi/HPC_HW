@@ -1,22 +1,32 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "cuPrintf.cu"
+
 #include "cuda_utils.h"
 #include "timer.c"
 
 typedef float dtype;
 
-
 __global__ 
-void matTrans(dtype* AT, dtype* A, int N,int chunk)  {
+void matTrans(dtype* AT, dtype* A, int N)  {
 	/* Fill your code here */
-	//int ThreadId = blockIdx.x * blockDim.x + threadIdx.x;
-	 int x = blockIdx.x * blockDim.x + threadIdx.x;
-  	int y = blockIdx.y * blockDim.y + threadIdx.y;
- 	 int width = N;
-//  for (int j = 0; j < 32; j+= 8)
-        AT[x*width + y] = A[y*width + x];
-}
+
+//	__shared__ float tileb[tile][tile];
+   
+  int tb_size = blockDim.x;
+  int col = blockIdx.x * tb_size + threadIdx.x;
+  int row = blockIdx.y * tb_size + threadIdx.y;
+  int width = gridDim.x*tb_size; 
+  //for (int j = 0; j < tile; j += rows)
+    // tileb[threadIdx.y+j][threadIdx.x] = A[(row+j)*width + col];
+
+  int chunk = blockDim.y;
+  int indx1 = col + width * row;
+  int indx2 = row + width * col;
+  
+ for (int j = 0; j < tb_size; j += chunk)
+       
+	 AT[indx2 + j] = A[indx1 + j * width];
+ }
 void
 parseArg (int argc, char** argv, int* N)
 {
@@ -78,7 +88,17 @@ gpuTranspose (dtype* A, dtype* AT, int N)
   /* Setup timers */
   stopwatch_init ();
   timer = stopwatch_create ();
-
+        
+	const int tb_x = 32; //size of each thread block
+	const int tb_y = 8; //each thread blocks width
+	dim3 numTB ;
+	numTB.x = ceil(N/tb_x);
+	numTB.y = ceil(N/tb_x);
+	dim3 tbSize; //= (tile,rows);
+	tbSize.x = tb_x;
+	tbSize.y = tb_y;
+	
+	
   stopwatch_start (timer);
 	/* run your kernel here */
         CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_A, N * N  * sizeof (dtype)));
@@ -94,22 +114,13 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	fprintf (stderr, "cudaMemcpy: %Lg seconds\n", t_pcie);
 
 
-	/* do not change this number */
-//	nThreads = 1048576;
-       
-//	tbSize = 1024;
-//	numTB = N;
-  	int chunk ;//= N/tbSize;
-	int tileSize = 32;
-	dim3 numTB = (N/tileSize,N/tileSize,1);
-	dim3 tbSize = (tileSize,tileSize,1);
 	stopwatch_start (timer);
 	// kernel invocation
-	matTrans <<<numTB,tbSize>>> (d_AT, d_A, N,chunk);
+	matTrans<<<numTB,tbSize>>>(d_AT, d_A, N);
 	cudaThreadSynchronize ();
      	CUDA_CHECK_ERROR (cudaMemcpy ( AT,d_AT, N * N * sizeof (dtype),cudaMemcpyDeviceToHost));
 
-//  cudaThreadSynchronize ();
+ //  cudaThreadSynchronize ();
   t_gpu = stopwatch_stop (timer);
   fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
            t_gpu, (N * N) / t_gpu * 1e-9 );
