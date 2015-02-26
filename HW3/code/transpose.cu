@@ -1,31 +1,42 @@
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <math.h>
 #include "cuda_utils.h"
 #include "timer.c"
 
 typedef float dtype;
-
+const int size_const = 32;
 __global__ 
 void matTrans(dtype* AT, dtype* A, int N)  {
 	/* Fill your code here */
 
 //	__shared__ float tileb[tile][tile];
    
-  int tb_size = blockDim.x;
+   int tb_size = blockDim.x;
   int col = blockIdx.x * tb_size + threadIdx.x;
   int row = blockIdx.y * tb_size + threadIdx.y;
   int width = gridDim.x*tb_size; 
-  //for (int j = 0; j < tile; j += rows)
-    // tileb[threadIdx.y+j][threadIdx.x] = A[(row+j)*width + col];
+ int chunk = blockDim.y;
 
-  int chunk = blockDim.y;
-  int indx1 = col + width * row;
-  int indx2 = row + width * col;
+  __shared__ dtype ldata[size_const][size_const]; 
+
+ //copy data from global to shared memory and transpose 
+ for (int i = 0; i < tb_size; i += chunk){
+      //if(col < N && row + i < N)
+	ldata[threadIdx.y + i][threadIdx.x] = A[(row+i)*N + col];
+	}
+  __syncthreads();
+  
+   //since it's been transposed while copying, block ids are inverted
+   col = blockIdx.y * tb_size + threadIdx.x;
+   row = blockIdx.x * tb_size + threadIdx.y;
+  
+  //int indx1 = col + width * row;
+  //int indx2 = row + width * col;
   
  for (int j = 0; j < tb_size; j += chunk)
        
-	 AT[indx2 + j] = A[indx1 + j * width];
+	 AT[(row+j)*N + col] = ldata[threadIdx.x][threadIdx.y + j];
  }
 void
 parseArg (int argc, char** argv, int* N)
@@ -82,7 +93,7 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 {
   struct stopwatch_t* timer = NULL;
   long double t_gpu,t_malloc,t_pcie;
-  dtype * d_A, *d_AT;
+  dtype * d_A, *d_AT, *A2, *AT2;
  // int chunk,nThreads,tbSize,numTB;
 	
   /* Setup timers */
@@ -91,35 +102,78 @@ gpuTranspose (dtype* A, dtype* AT, int N)
         
 	const int tb_x = 32; //size of each thread block
 	const int tb_y = 8; //each thread blocks width
+	
+
 	dim3 numTB ;
-	numTB.x = ceil(N/tb_x);
-	numTB.y = ceil(N/tb_x);
+	numTB.x = (int)ceil((double)N/(double)tb_x) ;
+	numTB.y = (int)ceil((double)N/(double)tb_x) ;
 	dim3 tbSize; //= (tile,rows);
 	tbSize.x = tb_x;
 	tbSize.y = tb_y;
-	
-	
-  stopwatch_start (timer);
+	int d_N;
+	if( N%32)d_N = numTB.x *tb_x;		
+	else d_N =N;
+        printf("d_n %d",d_N);
+	stopwatch_start (timer);
 	/* run your kernel here */
-        CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_A, N * N  * sizeof (dtype)));
-	CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_AT, N * N * sizeof (dtype)));
+        CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_A, d_N * d_N  * sizeof (dtype)));
+        A2 = (dtype *) malloc (d_N * d_N  * sizeof (dtype)); //padded A
+	AT2 = (dtype*) malloc (d_N * d_N * sizeof(dtype)); //padded AT
+	CUDA_CHECK_ERROR (cudaMalloc ((void**) &d_AT, d_N * d_N * sizeof (dtype)));
+	
+
 	t_malloc = stopwatch_stop (timer);
 	fprintf (stderr, "cudaMalloc: %Lg seconds\n", t_malloc);
 
 
 	stopwatch_start (timer);
+	// disperse the main array to a padded array
+	
+	for ( int count = 0; count < N ; count++)
+	{
+		for ( int j = 0; j < N ; j++)
+		{
+			A2[count*d_N+j] = A[count*N+j];
+		} 
+		for ( int k = 0; k < (d_N - N); k++)
+		{
+			A2[count* d_N + N + k] = 0;
+		}  
+	}
+	for ( int count = N; count < d_N; count++)
+	{
+		for( int j =0; j < d_N; j++)
+		{
+			A2[count*d_N + j] = 0;
+		}
+	}
+	
 	// copy arrays to device via PCIe
-	CUDA_CHECK_ERROR (cudaMemcpy (d_A, A, N * N * sizeof (dtype), cudaMemcpyHostToDevice));
+	CUDA_CHECK_ERROR (cudaMemcpy (d_A, A2, d_N * d_N * sizeof (dtype), cudaMemcpyHostToDevice));
+	
+	//CUDA_CHECK_ERROR (cudaMemcpy (d_A, A, d_N * d_N * sizeof (dtype), cudaMemcpyHostToDevice));
+	
 	t_pcie = stopwatch_stop (timer);
-	fprintf (stderr, "cudaMemcpy: %Lg seconds\n", t_pcie);
+	fprintf (stderr, "cudaMemcpy (and padding): %Lg seconds\n", t_pcie);
 
 
 	stopwatch_start (timer);
 	// kernel invocation
-	matTrans<<<numTB,tbSize>>>(d_AT, d_A, N);
+	matTrans<<<numTB,tbSize>>>(d_AT, d_A, d_N);
 	cudaThreadSynchronize ();
-     	CUDA_CHECK_ERROR (cudaMemcpy ( AT,d_AT, N * N * sizeof (dtype),cudaMemcpyDeviceToHost));
+	//if(! N%32){
+     	CUDA_CHECK_ERROR (cudaMemcpy ( AT2,d_AT, d_N * d_N * sizeof (dtype),cudaMemcpyDeviceToHost));
+	//combine the main array with removing/ignoring the empty boxes between each row. 
+	for ( int count = 0; count < N ; count++)
+	{
+		for ( int j = 0; j < N ; j++)
+		{
+			AT[count*N+j] = AT2[count*d_N+j];
+		} 
+	}
 
+	//else 
+	//CUDA_CHECK_ERROR (cudaMemcpy (AT, d_AT, d_N * d_N * sizeof (dtype), cudaMemcpyDeviceToHost));
  //  cudaThreadSynchronize ();
   t_gpu = stopwatch_stop (timer);
   fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
