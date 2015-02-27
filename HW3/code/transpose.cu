@@ -18,7 +18,7 @@ void matTrans(dtype* AT, dtype* A, int N)  {
   int width = gridDim.x*tb_size; 
  int chunk = blockDim.y;
 
-  __shared__ dtype ldata[size_const][size_const]; 
+  __shared__ dtype ldata[size_const+1][size_const+1]; 
 
  //copy data from global to shared memory and transpose 
  for (int i = 0; i < tb_size; i += chunk){
@@ -160,7 +160,9 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	stopwatch_start (timer);
 	// kernel invocation
 	matTrans<<<numTB,tbSize>>>(d_AT, d_A, d_N);
+
 	cudaThreadSynchronize ();
+        t_gpu = stopwatch_stop (timer);
 	if(d_N != N){
      	CUDA_CHECK_ERROR (cudaMemcpy ( AT2,d_AT, d_N * d_N * sizeof (dtype),cudaMemcpyDeviceToHost));
 	//combine the main array with removing/ignoring the empty boxes between each row. 
@@ -175,7 +177,6 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	else 
 	CUDA_CHECK_ERROR (cudaMemcpy (AT, d_AT, d_N * d_N * sizeof (dtype), cudaMemcpyDeviceToHost));
  //  cudaThreadSynchronize ();
-  t_gpu = stopwatch_stop (timer);
   fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
            t_gpu, (N * N) / t_gpu * 1e-9 );
 

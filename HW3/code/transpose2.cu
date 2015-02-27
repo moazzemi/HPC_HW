@@ -16,17 +16,18 @@ void matTrans(dtype* AT, dtype* A, int N)  {
   int width = gridDim.x*tb_size; 
  int chunk = blockDim.y;
 
-  __shared__ dtype ldata[size_const][size_const]; 
+ // +1 i s to avoid shared memory bank conflicts!! 
+  __shared__ dtype ldata[size_const+1][size_const+1]; 
 
  //copy data from global to shared memory and transpose 
  for (int i = 0; i < tb_size; i += chunk){
 	// GPU simple ://AT[col*N + row + i] = A[(row+i) * N + col];
 
-     // 	if(col < N && row + i < N)
+     	//if(col < N && row + i < N)
 	 
-   ldata[threadIdx.y + i][threadIdx.x] = A[((row+i)%N)*N + col%N];
+   	ldata[threadIdx.y + i][threadIdx.x] = A[((row+i)%N)*N + col%N];
 	
-	//	ldata[threadIdx.y + i][threadIdx.x] = 0;
+	//else	ldata[threadIdx.y + i][threadIdx.x] = 0;
 	
 	}
   __syncthreads();
@@ -41,8 +42,48 @@ void matTrans(dtype* AT, dtype* A, int N)  {
  //coalesced writes: 
  for (int j = 0; j < tb_size; j += chunk)
          if(row+j < N && col < N)
-	 AT[(row+j)*N + col] = ldata[threadIdx.x][threadIdx.y + j];
+	 AT[(row+j)*N + col] = ldata[threadIdx.x][threadIdx.y +j];
  
+}
+__global__ 
+void matTrans_simple(dtype* AT, dtype* A, int N)  {
+	/* Fill your code here */
+   
+   int tb_size = blockDim.x;
+  int col = blockIdx.x * tb_size + threadIdx.x;
+  int row = blockIdx.y * tb_size + threadIdx.y;
+  int width = gridDim.x*tb_size; 
+ int chunk = blockDim.y;
+
+ // +1 i s to avoid shared memory bank conflicts!! 
+//  __shared__ dtype ldata[size_const][size_const]; 
+
+ //copy data from global to shared memory and transpose 
+// for (int i = 0; i < tb_size; i += chunk){
+	// GPU simple ://AT[col*N + row + i] = A[(row+i) * N + col];
+
+    // 	if(col < N && row + i < N)
+	 
+  // 	ldata[threadIdx.y + i][threadIdx.x] = A[((row+i))*N + col];
+	
+//	else	ldata[threadIdx.y + i][threadIdx.x] = 0;
+	
+//	}
+ // __syncthreads();
+  
+   //since it's been transposed while copying, block ids are inverted
+  // col = blockIdx.y * tb_size + threadIdx.x;
+  // row = blockIdx.x * tb_size + threadIdx.y;
+  
+  //int indx1 = col + width * row;
+  //int indx2 = row + width * col;
+ 
+ //coalesced writes: 
+ for (int j = 0; j < tb_size; j += chunk)
+   //      if(row+j < N && col < N)
+	 AT[(row+j)*N + col] = A[col * N + (row + j)];
+ 
+
 }
 void
 parseArg (int argc, char** argv, int* N)
@@ -98,7 +139,7 @@ void
 gpuTranspose (dtype* A, dtype* AT, int N)
 {
   struct stopwatch_t* timer = NULL;
-  long double t_gpu,t_malloc,t_pcie;
+  long double t_gpu,t_malloc,t_pcie,t_gpu2;
   dtype * d_A, *d_AT, *A2, *AT2;
 	
   /* Setup timers */
@@ -137,18 +178,24 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	fprintf (stderr, "cudaMemcpy (and padding): %Lg seconds\n", t_pcie);
 
 
-	stopwatch_start (timer);
+//	stopwatch_start (timer);
 	// kernel invocation
-	matTrans<<<numTB,tbSize>>>(d_AT, d_A, N);
-	cudaThreadSynchronize ();
+	//matTrans<<<numTB,tbSize>>>(d_AT, d_A, N);
+	//cudaThreadSynchronize ();
+	//  t_gpu = stopwatch_stop (timer);
 
+	stopwatch_start(timer);
+	matTrans_simple<<<numTB,tbSize>>>(d_AT,d_A,N);
+	cudaThreadSynchronize();
+	t_gpu2 = stopwatch_stop (timer);
 
-
-  t_gpu = stopwatch_stop (timer);
 	CUDA_CHECK_ERROR (cudaMemcpy (AT, d_AT, N * N * sizeof (dtype), cudaMemcpyDeviceToHost));
  //  cudaThreadSynchronize ();
-  fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
-           t_gpu, (N * N) / t_gpu * 1e-9 );
+  //fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
+    //       t_gpu, (N * N) / t_gpu * 1e-9 );
+  fprintf (stderr, "GPU transpose simple: %Lg secs ==> %Lg billion elements/second\n",
+           t_gpu2, (N * N) / t_gpu2 * 1e-9 );
+
 
 }
 
