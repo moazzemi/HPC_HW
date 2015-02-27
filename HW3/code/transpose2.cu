@@ -20,10 +20,13 @@ void matTrans(dtype* AT, dtype* A, int N)  {
 
  //copy data from global to shared memory and transpose 
  for (int i = 0; i < tb_size; i += chunk){
-      	if(col < N && row + i < N)
-	    ldata[threadIdx.y + i][threadIdx.x] = A[(row+i)*N + col];
-	else
-		ldata[threadIdx.y + i][threadIdx.x] = 0;
+	// GPU simple ://AT[col*N + row + i] = A[(row+i) * N + col];
+
+     // 	if(col < N && row + i < N)
+	 
+   ldata[threadIdx.y + i][threadIdx.x] = A[((row+i)%N)*N + col%N];
+	
+	//	ldata[threadIdx.y + i][threadIdx.x] = 0;
 	
 	}
   __syncthreads();
@@ -37,9 +40,10 @@ void matTrans(dtype* AT, dtype* A, int N)  {
  
  //coalesced writes: 
  for (int j = 0; j < tb_size; j += chunk)
-       if(row+j < N && col < N)
+         if(row+j < N && col < N)
 	 AT[(row+j)*N + col] = ldata[threadIdx.x][threadIdx.y + j];
- }
+ 
+}
 void
 parseArg (int argc, char** argv, int* N)
 {
@@ -137,9 +141,12 @@ gpuTranspose (dtype* A, dtype* AT, int N)
 	// kernel invocation
 	matTrans<<<numTB,tbSize>>>(d_AT, d_A, N);
 	cudaThreadSynchronize ();
+
+
+
+  t_gpu = stopwatch_stop (timer);
 	CUDA_CHECK_ERROR (cudaMemcpy (AT, d_AT, N * N * sizeof (dtype), cudaMemcpyDeviceToHost));
  //  cudaThreadSynchronize ();
-  t_gpu = stopwatch_stop (timer);
   fprintf (stderr, "GPU transpose: %Lg secs ==> %Lg billion elements/second\n",
            t_gpu, (N * N) / t_gpu * 1e-9 );
 
